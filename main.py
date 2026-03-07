@@ -31,6 +31,7 @@ def get_pages():
 @app.route('/upload', methods=['POST'])
 def upload_pdf():
     text = ""
+    filename = ""
 
     try:
         start_val = int(request.form.get('start_page', 1))
@@ -73,10 +74,9 @@ def upload_pdf():
             text = "\n".join(full_text)
 
     elif 'manual_text' in request.form:
-        text = request.form['manual_text']
-        text = text[:5000] 
+        text = request.form['manual_text'] 
     
-    text = text.replace('\x00', '').strip()
+    text = text.replace('\x00', '').strip()[:12000]
     if not text.strip():
         return jsonify({
             "error": f"No text found in Batch {start_val}-{end_val}. The slides might be empty or contains only images."
@@ -124,7 +124,7 @@ def upload_pdf():
         "temperature": 0.0
     }
     
-    response = requests.post(HF_MODEL_URL, headers={"Authorization": f"Bearer {HF_TOKEN}"}, json=payload)
+    response = requests.post(HF_MODEL_URL, headers={"Authorization": f"Bearer {HF_TOKEN}"}, json=payload, timeout=(5, 60))
     if response.status_code != 200:
         print(f" HF API Error: {response.status_code} - {response.text}")
         return jsonify({"error": "The AI is currently overwhelmed. Please wait a few seconds and try again!"}), 503
