@@ -41,6 +41,14 @@
     <script>
         let selectedBatch = null;
 
+        const CODESPACE_BACKEND_URL = "https://jubilant-broccoli-jw4v64rv4x9c56vv-8000.app.github.dev";
+
+        function getApiUrl(endpoint) {
+            const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+            const baseUrl = isLocal ? "http://127.0.0.1:8000" : CODESPACE_BACKEND_URL;
+            return `${baseUrl}${endpoint}`;
+        }
+
         function setupBatches(totalUnits, isPDF) {
             const unitLabel = isPDF ? "pages" : "parts";
             const fileLabel = isPDF ? "PDF" : "document";
@@ -83,7 +91,7 @@
                 const formData = new FormData();
                 formData.append('file', file);
                 try {
-                    const res = await fetch('http://127.0.0.1:5000/get_pages', { method: 'POST', body: formData });
+                    const res = await fetch(getApiUrl('/get_pages'), { method: 'POST', body: formData });
                     const data = await res.json();
                     setupBatches(data.total_pages, true);
                 } catch (e) { console.error("Page count failed", e); }
@@ -95,15 +103,21 @@
         async function processContent() {
             const fileInput = document.getElementById('fileInput');
             const manualText = document.getElementById('manualText').value;
+            const manualTextValue = manualText.trim();
             const errorBox = document.getElementById('errorBox');
             const container = document.getElementById('lessonsResult');
             const formData = new FormData();
             
             errorBox.innerHTML = "";
 
-            if (manualText.trim() !== "") {
-                formData.append('manual_text', manualText);
+            if (manualTextValue !== "") {
+                container.innerHTML = "";
+                fileInput.value = "";
                 document.getElementById('pageSelector').style.display = 'none';
+                selectedBatch = null;
+                
+                formData.append('manual_text', manualTextValue);
+    
             } else if (fileInput.files.length > 0) {
                 if (!selectedBatch) return alert("Please select a batch first!");
                 formData.append('file', fileInput.files[0]);
@@ -116,7 +130,7 @@
             container.innerHTML += `<p id="${loadingId}" style="color: #3498db; font-weight:600;">⏳ Analyzing content... Please wait.</p>`;
 
             try {
-                const response = await fetch('http://127.0.0.1:5000/upload', { method: 'POST', body: formData });
+                const response = await fetch(getApiUrl('/upload'), { method: 'POST', body: formData });
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || "Server Error");
