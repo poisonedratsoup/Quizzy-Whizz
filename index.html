@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizzy Whizz: A Smart Web App For Students</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 15px; resize: vertical; }
+        button { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s; }
+        button:hover { background: #2980b9; transform: translateY(-1px); }
+        .task-card { background: #fff; border-left: 5px solid #3498db; padding: 15px; margin-bottom: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .error { color: #e74c3c; background: #fadbd8; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Quizzy Whizz</h1>
+        <p>Upload a file or paste your notes to simplify your study load.</p>
+
+        <textarea id="manualText" rows="5" placeholder="Paste your messy notes here..."></textarea>
+
+        <div id="pageSelector" style="margin-bottom: 15px; display:none; background: #ebf5fb; padding: 15px; border-radius: 12px;">
+            <div id="selectorHeader"></div> 
+            <p style="font-size: 0.9em; color: #555;">Select a batch to process:</p>
+            <div id="batchContainer" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;"></div>
+        </div>
+        
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <input type="file" id="fileInput" accept=".pdf,.docx,.pptx">
+            
+            <button onclick="processContent()">Analyze</button>
+        </div>
+    </div>
+
+    <div id="errorBox"></div>
+    <div id="lessonsResult"></div>
+
+    <script>
+        let selectedBatch = null;
+
+        function setupBatches(totalUnits, isPDF) {
+            const unitLabel = isPDF ? "pages" : "parts";
+            const fileLabel = isPDF ? "PDF" : "document";
+
+            document.getElementById('selectorHeader').innerHTML = 
+                `<p style="margin-top:0; font-weight: 600;">📄 This ${fileLabel} has ${totalUnits} ${unitLabel}.</p>`;
+
+            const batchContainer = document.getElementById('batchContainer');
+            batchContainer.innerHTML = "";
+            selectedBatch = null;
+
+            const totalBatches = Math.ceil(totalUnits / 3);
+            for (let i = 0; i < totalBatches; i++) {
+                const start = (i * 3) + 1;
+                const end = Math.min((i + 1) * 3, totalUnits);
+                
+                const btn = document.createElement('button');
+                btn.type = "button";
+                
+                const label = isPDF ? "Pg" : "Part";
+                btn.innerText = `Batch ${i + 1} (${label} ${start}-${end})`;
+                btn.style.cssText = "background: #fff; color: #3498db; border: 1px solid #3498db; padding: 8px 12px; font-size: 0.85em; cursor: pointer; border-radius:6px;";
+                
+                btn.onclick = () => {
+                    Array.from(batchContainer.children).forEach(b => { b.style.background = "#fff"; b.style.color = "#3498db"; });
+                    btn.style.background = "#3498db"; btn.style.color = "#fff";
+                    selectedBatch = { start, end };
+                };
+                batchContainer.appendChild(btn);
+            }
+            document.getElementById('pageSelector').style.display = 'block';
+        }
+
+        document.getElementById('fileInput').onchange = async function() {
+            if (this.files.length === 0) return;
+            const file = this.files[0];
+            const isPDF = file.name.toLowerCase().endsWith('.pdf');
+            const isDoc = file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.pptx');
+
+            document.getElementById('lessonsResult').innerHTML = ""; 
+            document.getElementById('errorBox').innerHTML = "";
+
+            if (isPDF) {
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/get_pages', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    setupBatches(data.total_pages, true);
+                } catch (e) { console.error("Page count failed", e); }
+            } else if (isDoc) {
+                setupBatches(15, false);
+            } else {
+                document.getElementById('pageSelector').style.display = 'none';
+            }
+        };
+
+        async function processContent() {
+            const fileInput = document.getElementById('fileInput');
+            const manualText = document.getElementById('manualText').value;
+            const errorBox = document.getElementById('errorBox');
+            const container = document.getElementById('lessonsResult');
+            const formData = new FormData();
+            
+            let statusLabel = null;
+            errorBox.innerHTML = "";
+
+            if (manualText.trim() !== "") {
+                container.innerHTML = "Processing manual notes...";
+                formData.append('manual_text', manualText);
+            } else if (fileInput.files.length > 0) {
+                if (!selectedBatch) return alert("Please select a batch first!");
+                
+                const file = fileInput.files[0];
+                formData.append('file', file);
+                formData.append('start_page', selectedBatch.start);
+                formData.append('end_page', selectedBatch.end);
+                
+                statusLabel = document.createElement('p');
+                statusLabel.style.color = "#3498db";
+                statusLabel.innerText = `⏳ Loading... Please wait.`;
+                container.appendChild(statusLabel);
+            } else {
+                return alert("Please paste text or select a file!");
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (statusLabel) statusLabel.remove();
+                if (!response.ok) throw new Error(data.error || "Server Error");
+
+                const labels = container.querySelectorAll('p');
+                if (labels.length > 0) labels[labels.length - 1].remove();
+
+                renderBatch(data);
+                selectedBatch = null;
+                if (manualText.trim() !== "") {
+                    document.getElementById('manualText').value = "";
+                    container.innerHTML = ""; // Clear manual loading text
+                }
+            } catch (error) {
+                if (statusLabel) statusLabel.remove();
+                errorBox.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+            }
+        }
+
+        function renderBatch(data) {
+            const container = document.getElementById('lessonsResult');
+            if (container.querySelectorAll('h1').length === 0) { 
+                container.innerHTML += `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db; padding-bottom:10px;">${data.subject}</h1>`;
+            }
+            data.topics.forEach(topic => {
+                container.innerHTML += `<h2 style="margin-top:30px; color:#2980b9;">📘 ${topic.topic_name}</h2>`;
+                topic.subtopics.forEach(sub => {
+                    container.innerHTML += `
+                        <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
+                            <h3 style="margin-top:0; color:#34495e;">${sub.subtopic_name}</h3>
+                            <p style="margin:0; line-height:1.6;">${sub.content}</p>
+                        </div>`;
+                });
+            });
+            container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    </script>
+</body>
+</html>
