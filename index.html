@@ -90,7 +90,7 @@
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const res = await fetch(getApiUrl('/get_pages'), { method: 'POST', body: formData });
+                const res = await fetch(getApiUrl('/get_metadata'), { method: 'POST', body: formData });
                 const data = await res.json();
                 setupBatches(data.total, data.type); 
             } catch (e) { 
