@@ -49,23 +49,25 @@
             return `${baseUrl}${endpoint}`;
         }
 
-        function setupBatches(totalUnits, isPDF) {
-            const unitLabel = isPDF ? "pages" : "parts";
-            const fileLabel = isPDF ? "PDF" : "document";
+        function setupBatches(totalUnits, unitType) {
+            const unitLabel = unitType;
             document.getElementById('selectorHeader').innerHTML = 
-                `<p style="margin-top:0; font-weight: 600;">📄 This ${fileLabel} has ${totalUnits} ${unitLabel}.</p>`;
+                `<p style="margin-top:0; font-weight: 600;">📄 Document has ${totalUnits} ${unitLabel}.</p>`;
 
             const batchContainer = document.getElementById('batchContainer');
             batchContainer.innerHTML = "";
             selectedBatch = null;
 
-            const totalBatches = Math.ceil(totalUnits / 3);
+            const batchSize = (unitType === "paragraphs") ? 15 : 3;
+            const totalBatches = Math.ceil(totalUnits / batchSize);
+
             for (let i = 0; i < totalBatches; i++) {
-                const start = (i * 3) + 1;
-                const end = Math.min((i + 1) * 3, totalUnits);
+                const start = (i * batchSize) + 1;
+                const end = Math.min((i + 1) * batchSize, totalUnits);
+                
                 const btn = document.createElement('button');
                 btn.type = "button";
-                const label = isPDF ? "Pg" : "Part";
+                const label = unitType === "pages" ? "Pg" : (unitType === "slides" ? "Slide" : "Para");
                 btn.innerText = `Batch ${i + 1} (${label} ${start}-${end})`;
                 btn.style.cssText = "background: #fff; color: #3498db; border: 1px solid #3498db; padding: 8px 12px; font-size: 0.85em; cursor: pointer; border-radius:6px;";
                 
@@ -82,21 +84,18 @@
         document.getElementById('fileInput').onchange = async function() {
             if (this.files.length === 0) return;
             const file = this.files[0];
-            const isPDF = file.name.toLowerCase().endsWith('.pdf');
-            const isDoc = file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.pptx');
             document.getElementById('lessonsResult').innerHTML = ""; 
             document.getElementById('errorBox').innerHTML = "";
 
-            if (isPDF) {
-                const formData = new FormData();
-                formData.append('file', file);
-                try {
-                    const res = await fetch(getApiUrl('/get_pages'), { method: 'POST', body: formData });
-                    const data = await res.json();
-                    setupBatches(data.total_pages, true);
-                } catch (e) { console.error("Page count failed", e); }
-            } else {
-                setupBatches(15, false);
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(getApiUrl('/get_pages'), { method: 'POST', body: formData });
+                const data = await res.json();
+                setupBatches(data.total, data.type); 
+            } catch (e) { 
+                console.error("Metadata fetch failed", e);
+                document.getElementById('errorBox').innerHTML = "❌ Error: Could not analyze file.";
             }
         };
 

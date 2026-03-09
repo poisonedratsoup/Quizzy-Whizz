@@ -22,11 +22,20 @@ def get_pages():
     if 'file' not in request.files:
         return jsonify({"error": "No file"}), 400
     file = request.files['file']
+    filename = file.filename.lower()
     try:
-        with pdfplumber.open(file) as pdf:
-            return jsonify({"total_pages": len(pdf.pages)})
-    except Exception as e:
-        return jsonify({"error": "Could not read PDF"}), 500
+        if filename.endswith('.pdf'):
+            with pdfplumber.open(file) as pdf:
+                return jsonify({"total": len(pdf.pages), "type": "pages"})
+        elif filename.endswith('.docx'):
+            doc = docx.Document(file)
+            count = sum(1 for p in doc.paragraphs if p.text.strip())
+            return jsonify({"total": count, "type": "paragraphs"})
+        elif filename.endswith('.pptx'):
+            prs = Presentation(file)
+            return jsonify({"total": len(prs.slides), "type": "slides"})
+    except:
+        return jsonify({"error": "Could not read file"}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_pdf():
@@ -44,9 +53,9 @@ def upload_pdf():
     if 'file' in request.files:
         file = request.files['file']
         if file.filename == '':
-             return jsonify({"error": "No file selected"}), 400
-
+            return jsonify({"error": "No file selected"}), 400
         filename = file.filename.lower()
+        
         if filename.endswith('.pdf'):
             with pdfplumber.open(file) as pdf:
                 total = len(pdf.pages)
@@ -55,22 +64,19 @@ def upload_pdf():
 
         elif filename.endswith('.docx'):
             doc = docx.Document(file)
-            paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
-            paras_per_page = 15
-            start_idx = start_pg * paras_per_page
-            end_idx = end_pg * paras_per_page
-            text = "\n".join(paragraphs[start_idx:end_idx])
+            paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            text = "\n".join(paragraphs[start_pg:end_pg])
 
         elif filename.endswith('.pptx'):
             prs = Presentation(file)
             all_slides = list(prs.slides) 
             selected_slides = all_slides[start_pg:end_pg]
-            
+
             full_text = []
             for slide in selected_slides:
                 for shape in slide.shapes:
-                    if hasattr(shape, "text"):
-                        full_text.append(shape.text)
+                    if hasattr(shape, "text") and shape.text.strip(): 
+                        full_text.append(shape.text.strip())
             text = "\n".join(full_text)
 
     elif 'manual_text' in request.form:
@@ -81,15 +87,11 @@ def upload_pdf():
         return jsonify({
             "error": f"No text found in Batch {start_val}-{end_val}. The slides might be empty or contains only images."
         }), 400
-    
-    strict_rule = ""
-    if filename.endswith(('.pptx', '.docx')):
-        strict_rule = "CRITICAL: DO NOT add external info, code, or examples. Use ONLY the provided text."
 
     prompt = f"""
-    {strict_rule}
     Analyze the following text and extract its hierarchical structure.
     Create a nested study guide: Subject > Topic > Subtopic > Content.
+    CRITICAL: DO NOT add external info, code, or examples. Use ONLY the provided text.
 
     HIERARCHY LOGIC:
     1. 'Subject' is the overall title of the document.
