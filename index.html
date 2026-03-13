@@ -90,7 +90,7 @@
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const res = await fetch(getApiUrl('/get_pages'), { method: 'POST', body: formData });
+                const res = await fetch(getApiUrl('/get_metadata/'), { method: 'POST', body: formData });
                 const data = await res.json();
                 setupBatches(data.total, data.type); 
             } catch (e) { 
@@ -100,13 +100,17 @@
         };
 
         async function processContent() {
+            const analyzeBtn = document.querySelector('button[onclick="processContent()"]');
             const fileInput = document.getElementById('fileInput');
             const manualText = document.getElementById('manualText').value;
             const manualTextValue = manualText.trim();
             const errorBox = document.getElementById('errorBox');
             const container = document.getElementById('lessonsResult');
             const formData = new FormData();
-            
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.style.opacity = "0.5";
+            analyzeBtn.innerText = "Processing...";
             errorBox.innerHTML = "";
 
             if (manualTextValue !== "") {
@@ -118,23 +122,31 @@
                 formData.append('manual_text', manualTextValue);
     
             } else if (fileInput.files.length > 0) {
-                if (!selectedBatch) return alert("Please select a batch first!");
+                if (!selectedBatch) {
+                    alert("Please select a batch first!");
+                    resetBtn(analyzeBtn);
+                    return;
+                }
                 formData.append('file', fileInput.files[0]);
                 formData.append('start_page', selectedBatch.start);
                 formData.append('end_page', selectedBatch.end);
             } else {
-                return alert("Please paste text or select a file!");
+                alert("Please paste text or select a file!");
+                resetBtn(analyzeBtn);
+                return;
             }
             const loadingId = "loading-" + Date.now();
             container.innerHTML += `<p id="${loadingId}" style="color: #3498db; font-weight:600;">⏳ Analyzing content... Please wait.</p>`;
 
             try {
-                const response = await fetch(getApiUrl('/upload'), { method: 'POST', body: formData });
+                const response = await fetch(getApiUrl('/upload_content/'), { method: 'POST', body: formData });
                 const data = await response.json();
 
                 if (!response.ok) throw new Error(data.error || "Server Error");
+
                 const loadingMsg = document.getElementById(loadingId);
                 if (loadingMsg) loadingMsg.remove();
+
                 renderBatch(data);
 
                 if (manualText.trim() !== "") {
@@ -146,7 +158,19 @@
                 const loadingMsg = document.getElementById(loadingId);
                 if (loadingMsg) loadingMsg.remove();
                 errorBox.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+            } finally {
+                setTimeout(() => resetBtn(analyzeBtn), 10000);
+                
+                if (analyzeBtn.disabled) {
+                    analyzeBtn.innerText = "Cooldown (10s)...";
+                }
             }
+        }
+
+        function resetBtn(btn) {
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.innerText = "Analyze";
         }
 
         function renderBatch(data) {
