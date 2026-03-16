@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="stylesheet" href="{% static 'processor/css/style.css' %}">
+</head>
+
+<body>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button onclick="showTab('create')" id="btnCreate" style="background: #3498db;">🚀 Create Lesson</button>
+        <button onclick="showTab('library')" id="btnLibrary" style="background: #95a5a6;">📚 My Library</button>
+    </div>
+
+    <div id="createSection">
+        <div class="card">
+            <h1>Quizzy Whizz</h1>
+            <p>Upload a file or paste your notes to simplify your study load.</p>
+
+            <textarea id="manualText" rows="5" placeholder="Paste your messy notes here..."></textarea>
+
+            <div id="pageSelector"
+                style="margin-bottom: 15px; display:none; background: #ebf5fb; padding: 15px; border-radius: 12px;">
+                <div id="selectorHeader"></div>
+                <p style="font-size: 0.9em; color: #555;">Select a batch to process:</p>
+                <div id="batchContainer" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;"></div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <input type="file" id="fileInput" accept=".pdf,.docx,.pptx">
+                <button onclick="processContent()">Analyze</button>
+            </div>
+        </div>
+
+        <div id="errorBox"></div>
+        <div id="lessonsResult"></div>
+
+    </div>
+
+    <div id="librarySection" style="display: none;">
+        <div class="card">
+            <h2>Your Saved Lessons</h2>
+            <div id="libraryList">
+                <p>Click "My Library" to load your saved materials.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="quizOverlay">
+        <div class="quiz-container">
+            <button onclick="closeQuiz()" style="position: absolute; right: 20px; top: 20px; background: #e74c3c;">✕
+                Close</button>
+            <h2 id="quizTitle"></h2>
+            <div id="quizQuestions"></div>
+            <div id="quizResults" style="margin-top: 20px; font-weight: bold; text-align: center;"></div>
+        </div>
+    </div>
+
+    <script src="{% static 'processor/js/script.js' %}"></script>
+</body>
+
+</html>

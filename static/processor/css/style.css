@@ -1,0 +1,111 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #f4f7f6;
+    color: #333;
+}
+
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+    resize: vertical;
+}
+
+button {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #2980b9;
+    transform: translateY(-1px);
+}
+
+.task-card {
+    background: #fff;
+    border-left: 5px solid #3498db;
+    padding: 15px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.error {
+    color: #e74c3c;
+    background: #fadbd8;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+#quizOverlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.quiz-container {
+    background: white;
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 30px;
+    border-radius: 12px;
+    position: relative;
+}
+
+.option-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 12px;
+    margin: 8px 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    transition: 0.2s;
+    color: #333;
+}
+
+.option-btn:hover {
+    background: #f0f7ff;
+    border-color: #3498db;
+}
+
+.correct {
+    background: #d4edda !important;
+    border-color: #28a745 !important;
+    color: #155724;
+}
+
+.wrong {
+    background: #f8d7da !important;
+    border-color: #dc3545 !important;
+    color: #721c24;
+}
