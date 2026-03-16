@@ -134,8 +134,7 @@ def upload_content(request):
 
     MODELS = [
         "Qwen/Qwen2.5-Coder-32B-Instruct",
-        "meta-llama/Meta-Llama-3-8B-Instruct",
-        "mistralai/Mistral-7B-Instruct-v0.3"
+        "meta-llama/Meta-Llama-3-8B-Instruct"
     ]
 
     ai_response_data = None
@@ -157,7 +156,7 @@ def upload_content(request):
                 break
 
             print(f"{model_name} failed with status {response.status_code}. Trying next...")
-            time.sleep(1)
+            time.sleep(3)
 
         except Exception as e:
             print(f"Error connecting to {model_name}: {e}")
