@@ -3,20 +3,34 @@
 <html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizzy Whizz</title>
     <link rel="stylesheet" href="{% static 'processor/css/style.css' %}">
 </head>
 
 <body>
 
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <button onclick="showTab('create')" id="btnCreate" style="background: #3498db;">🚀 Create Lesson</button>
-        <button onclick="showTab('library')" id="btnLibrary" style="background: #95a5a6;">📚 My Library</button>
-    </div>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>📚 My Library</h2>
+            <button onclick="createNewFolder()" class="btn-new-folder">➕ New Folder</button>
+        </div>
+        <div id="libraryList">
+            <p style="color: #bdc3c7; font-size: 0.9em; padding: 10px;">Loading library...</p>
+        </div>
+    </aside>
 
-    <div id="createSection">
+    <main class="main-content">
+        <div id="activeFolderIndicator" class="active-banner" style="display:none;">
+            📂 Active Folder: <span id="currentFolderName">None</span>
+            <button onclick="clearActiveFolder()"
+                style="background:transparent; color:#155724; border:1px solid #155724; padding:2px 8px; margin-left:10px; cursor:pointer; border-radius:4px;">Change</button>
+        </div>
+
         <div class="card">
             <h1>Quizzy Whizz</h1>
-            <p>Upload a file or paste your notes to simplify your study load.</p>
+            <p>Select a folder from the sidebar, then upload or paste content.</p>
 
             <textarea id="manualText" rows="5" placeholder="Paste your messy notes here..."></textarea>
 
@@ -29,23 +43,13 @@
 
             <div style="display: flex; align-items: center; justify-content: space-between;">
                 <input type="file" id="fileInput" accept=".pdf,.docx,.pptx">
-                <button onclick="processContent()">Analyze</button>
+                <button onclick="processContent()" id="analyzeBtn">Analyze</button>
             </div>
         </div>
 
         <div id="errorBox"></div>
         <div id="lessonsResult"></div>
-
-    </div>
-
-    <div id="librarySection" style="display: none;">
-        <div class="card">
-            <h2>Your Saved Lessons</h2>
-            <div id="libraryList">
-                <p>Click "My Library" to load your saved materials.</p>
-            </div>
-        </div>
-    </div>
+    </main>
 
     <div id="quizOverlay">
         <div class="quiz-container">

@@ -1,10 +1,77 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
+    margin: 0;
+    padding: 0;
     background: #f4f7f6;
     color: #333;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 280px;
+    min-width: 280px;
+    height: 100vh;
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.sidebar h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    color: #ecf0f1;
+}
+
+.sidebar-topic {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 6px;
+}
+
+.sidebar-topic:hover {
+    background: #34495e;
+    color: #3498db !important;
+    padding-left: 20px !important;
+}
+
+.btn-new-folder {
+    background: #2ecc71;
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 10px;
+}
+
+.folder-item {
+    background: #34495e;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.folder-item:hover {
+    background: #3498db;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: 40px;
+    background: #f4f7f6;
+    overflow-y: auto;
+}
+
+.active-banner {
+    background: #d4edda;
+    color: #155724;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #c3e6cb;
+    font-weight: 600;
 }
 
 .card {
@@ -12,7 +79,8 @@ body {
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 textarea {
@@ -22,6 +90,7 @@ textarea {
     padding: 12px;
     margin-bottom: 15px;
     resize: vertical;
+    box-sizing: border-box;
 }
 
 button {
@@ -47,14 +116,6 @@ button:hover {
     margin-bottom: 12px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.error {
-    color: #e74c3c;
-    background: #fadbd8;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 15px;
 }
 
 #quizOverlay {
@@ -83,29 +144,60 @@ button:hover {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 12px;
-    margin: 8px 0;
-    border: 1px solid #ddd;
+    padding: 15px;
+    margin: 10px 0;
+    border: 2px solid #eee;
     border-radius: 8px;
-    background: #fff;
+    background: #ffffff;
+    color: #333333 !important;
     cursor: pointer;
+    font-size: 1em;
     transition: 0.2s;
-    color: #333;
-}
-
-.option-btn:hover {
-    background: #f0f7ff;
-    border-color: #3498db;
 }
 
 .correct {
     background: #d4edda !important;
     border-color: #28a745 !important;
-    color: #155724;
+    color: #155724 !important;
 }
 
 .wrong {
     background: #f8d7da !important;
     border-color: #dc3545 !important;
+    color: #721c24 !important;
+}
+
+.difficulty-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: bold;
+    margin-top: 5px;
+    text-transform: uppercase;
+}
+
+.diff-1 {
+    background: #d4edda;
+    color: #155724;
+}
+
+.diff-2 {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.diff-3 {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.diff-4 {
+    background: #ffe5d0;
+    color: #854804;
+}
+
+.diff-5 {
+    background: #f8d7da;
     color: #721c24;
 }

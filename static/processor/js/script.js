@@ -1,4 +1,6 @@
 let selectedBatch = null;
+let currentSessionSubject = null;
+let activeFolder = null;
 
 const CODESPACE_BACKEND_URL = "https://jubilant-broccoli-jw4v64rv4x9c56vv-8000.app.github.dev";
 
@@ -61,7 +63,9 @@ function setupBatches(totalUnits, unitType) {
 }
 
 document.getElementById('fileInput').onchange = async function () {
+    localStorage.removeItem('last_processed_subject');
     if (this.files.length === 0) return;
+    currentSessionSubject = null;
     const file = this.files[0];
     document.getElementById('lessonsResult').innerHTML = "";
     document.getElementById('errorBox').innerHTML = "";
@@ -97,25 +101,34 @@ async function processContent() {
         fileInput.value = "";
         document.getElementById('pageSelector').style.display = 'none';
         selectedBatch = null;
-
+        currentSessionSubject = null;
         formData.append('manual_text', manualTextValue);
 
     } else if (fileInput.files.length > 0) {
+        const fileObj = fileInput.files[0];
         if (!selectedBatch) {
             alert("Please select a batch first!");
             resetBtn(analyzeBtn);
             return;
         }
-        formData.append('file', fileInput.files[0]);
+        formData.append('file', fileObj);
         formData.append('start_page', selectedBatch.start);
         formData.append('end_page', selectedBatch.end);
+        formData.append('document_filename', fileObj.name);
     } else {
         alert("Please paste text or select a file!");
         resetBtn(analyzeBtn);
         return;
     }
+
     const loadingId = "loading-" + Date.now();
     container.innerHTML += `<p id="${loadingId}" style="color: #3498db; font-weight:600;">⏳ Analyzing content... Please wait.</p>`;
+
+    const savedSubject = localStorage.getItem('last_processed_subject');
+    const folderToUse = activeFolder || savedSubject;
+    if (folderToUse && folderToUse !== "null") {
+        formData.append('document_context', folderToUse);
+    }
 
     try {
         const response = await fetch(getApiUrl('/upload_content/'), { method: 'POST', body: formData });
@@ -123,10 +136,16 @@ async function processContent() {
 
         if (!response.ok) throw new Error(data.error || "Server Error");
 
+        if (data.subject) {
+            localStorage.setItem('last_processed_subject', data.subject);
+            activeFolder = data.subject;
+            fetchLibrary();
+        }
+
         const loadingMsg = document.getElementById(loadingId);
         if (loadingMsg) loadingMsg.remove();
 
-        renderBatch(data.data);
+        renderBatch(data);
 
         if (manualText.trim() !== "") {
             document.getElementById('manualText').value = "";
@@ -154,19 +173,34 @@ function resetBtn(btn) {
 
 function renderBatch(data) {
     const container = document.getElementById('lessonsResult');
-    if (container.querySelectorAll('h1').length === 0) {
-        container.innerHTML += `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db; padding-bottom:10px;">${data.subject}</h1>`;
+
+    if (data.topic_name) {
+        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db; padding-bottom:10px;">${data.topic_name}</h1>`;
+
+        if (data.subtopics) {
+            data.subtopics.forEach(sub => {
+                container.innerHTML += `
+                    <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
+                        <h3 style="margin-top:0; color:#34495e;">${sub.name || sub.subtopic_name}</h3>
+                        <p style="margin:0; line-height:1.6;">${sub.content}</p>
+                    </div>`;
+            });
+        }
     }
-    data.topics.forEach(topic => {
-        container.innerHTML += `<h2 style="margin-top:30px; color:#2980b9;">📘 ${topic.topic_name}</h2>`;
-        topic.subtopics.forEach(sub => {
-            container.innerHTML += `
-                        <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
-                            <h3 style="margin-top:0; color:#34495e;">${sub.subtopic_name}</h3>
-                            <p style="margin:0; line-height:1.6;">${sub.content}</p>
-                        </div>`;
+    else if (data.subject) {
+        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db;">${data.subject}</h1>`;
+        data.topics.forEach(topic => {
+            container.innerHTML += `<h2 style="color:#2980b9;">📘 ${topic.topic_name}</h2>`;
+            topic.subtopics.forEach(sub => {
+                container.innerHTML += `
+                    <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
+                        <h3>${sub.subtopic_name}</h3>
+                        <p>${sub.content}</p>
+                    </div>`;
+            });
         });
-    });
+    }
+
     container.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -174,32 +208,66 @@ async function fetchLibrary() {
     const list = document.getElementById('libraryList');
     try {
         const res = await fetch(getApiUrl('/get_all_lessons/'));
-        const lessons = await res.json();
+        const subjects = await res.json();
 
-        if (lessons.length === 0) {
-            list.innerHTML = "<p>No lessons found yet. Go create one!</p>";
+        if (subjects.length === 0) {
+            list.innerHTML = "<p style='padding:10px; color:#bdc3c7;'>No folders found.</p>";
             return;
         }
 
         list.innerHTML = "";
-        lessons.forEach(lesson => {
-            const date = new Date(lesson.created_at).toLocaleDateString();
-            list.innerHTML += `
-                        <div class="task-card" style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="font-size: 1.1em;">${lesson.subject}</strong><br>
-                                <small>Created: ${date}</small>
-                            </div>
-                            <div style="display: flex; gap: 8px;">
-                                <button onclick="viewLesson(${lesson.id})" style="padding: 6px 12px; background: #3498db; font-size: 0.8em;">📖 Study</button>
-                                <button onclick="startQuiz(${lesson.id})" style="padding: 6px 12px; background: #2ecc71; font-size: 0.8em;">📝 Quiz</button>
-                                <button onclick="deleteLesson(${lesson.id})" style="padding: 6px 12px; background: #e74c3c; font-size: 0.8em;">🗑️ Delete</button>
-                            </div>
-                        </div>`;
+        subjects.forEach(subj => {
+            const folderDiv = document.createElement('div');
+            folderDiv.className = "folder-item";
+            folderDiv.innerHTML = `<strong>📁 ${subj.subject_name}</strong>`;
+            folderDiv.onclick = () => selectFolder(subj.subject_name);
+            list.appendChild(folderDiv);
+
+            subj.topics.forEach(topic => {
+                const topicDiv = document.createElement('div');
+                topicDiv.style.cssText = "margin-left: 15px; padding: 10px; cursor: pointer; border-radius: 6px; font-size: 0.85em; display: flex; justify-content: space-between; align-items: center; color: #ecf0f1; border-bottom: 1px solid #34495e; transition: 0.2s;";
+
+                topicDiv.onmouseover = () => topicDiv.style.background = "#34495e";
+                topicDiv.onmouseout = () => topicDiv.style.background = "transparent";
+
+                topicDiv.onclick = () => viewLesson(topic.id);
+
+                topicDiv.innerHTML = `
+                    <span>📄 ${topic.name}</span>
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="event.stopPropagation(); startQuiz(${topic.id})" style="padding: 2px 6px; background: #2ecc71; font-size: 0.7em;">📝</button>
+                        <button onclick="event.stopPropagation(); deleteLesson(${topic.id})" style="padding: 2px 6px; background: #e74c3c; font-size: 0.7em;">🗑️</button>
+                    </div>
+                `;
+                list.appendChild(topicDiv);
+            });
         });
     } catch (e) {
         list.innerHTML = "<p class='error'>Error loading library.</p>";
     }
+}
+
+
+function selectFolder(name) {
+    activeFolder = name;
+    document.getElementById('currentFolderName').innerText = name;
+    document.getElementById('activeFolderIndicator').style.display = 'block';
+    localStorage.setItem('last_processed_subject', name);
+}
+
+
+function createNewFolder() {
+    const name = prompt("Enter New Folder Name");
+    if (name && name.trim() !== "") {
+        selectFolder(name.trim());
+    }
+}
+
+
+function clearActiveFolder() {
+    activeFolder = null;
+    document.getElementById('activeFolderIndicator').style.display = 'none';
+    localStorage.removeItem('last_processed_subject');
 }
 
 async function startQuiz(id) {
@@ -282,21 +350,31 @@ async function deleteLesson(id) {
 }
 
 async function viewLesson(id) {
-    showTab('create');
     const container = document.getElementById('lessonsResult');
-    container.innerHTML = "<p>⏳ Loading your lesson...</p>";
+    container.innerHTML = "<p>⏳ Loading...</p>";
 
     const formData = new FormData();
     formData.append('guide_id', id);
 
     try {
         const res = await fetch(getApiUrl('/get_lesson_detail/'), { method: 'POST', body: formData });
-        const data = await res.json();
+        const topicData = await res.json();
 
-        container.innerHTML = "";
-        renderBatch(data);
-
+        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db;">${topicData.topic_name}</h1>`;
+        topicData.subtopics.forEach(sub => {
+            container.innerHTML += `
+                <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
+                    <h3 style="margin-top:0;">${sub.name}</h3>
+                    <p>${sub.content}</p>
+                </div>`;
+        });
     } catch (e) {
-        container.innerHTML = "<p class='error'>Failed to load lesson.</p>";
+        container.innerHTML = "<p class='error'>Failed to load.</p>";
     }
 }
+
+window.onload = () => {
+    fetchLibrary();
+    const saved = localStorage.getItem('last_processed_subject');
+    if (saved) selectFolder(saved);
+};
