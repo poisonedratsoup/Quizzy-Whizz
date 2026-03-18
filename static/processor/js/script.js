@@ -1,43 +1,54 @@
 let selectedBatch = null;
-let currentSessionSubject = null;
-let activeFolder = null;
+let activeFolder = localStorage.getItem('last_processed_subject') || null;
 
-const CODESPACE_BACKEND_URL = "https://jubilant-broccoli-jw4v64rv4x9c56vv-8000.app.github.dev";
-
+// API URL Helper
 function getApiUrl(endpoint) {
     const isLocal = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
-    const baseUrl = isLocal ? "http://127.0.0.1:8000" : CODESPACE_BACKEND_URL;
+    const baseUrl = isLocal ? "http://127.0.0.1:8000" : "https://jubilant-broccoli-jw4v64rv4x9c56vv-8000.app.github.dev";
     return `${baseUrl}${endpoint}`;
 }
 
-function showTab(tabName) {
-    const createSec = document.getElementById('createSection');
-    const librarySec = document.getElementById('librarySection');
-    const btnCreate = document.getElementById('btnCreate');
-    const btnLibrary = document.getElementById('btnLibrary');
-
-    if (tabName === 'create') {
-        createSec.style.display = 'block';
-        librarySec.style.display = 'none';
-        btnCreate.style.background = '#3498db';
-        btnLibrary.style.background = '#95a5a6';
+// Sidebar/Folder UI Logic
+function updateActiveFolderUI() {
+    const banner = document.getElementById('activeFolderIndicator');
+    const nameSpan = document.getElementById('currentFolderName');
+    if (activeFolder && activeFolder !== "null") {
+        banner.style.display = 'block';
+        nameSpan.innerText = activeFolder;
     } else {
-        createSec.style.display = 'none';
-        librarySec.style.display = 'block';
-        btnCreate.style.background = '#95a5a6';
-        btnLibrary.style.background = '#3498db';
-        fetchLibrary();
+        banner.style.display = 'none';
     }
 }
 
-function setupBatches(totalUnits, unitType) {
-    const unitLabel = unitType;
-    document.getElementById('selectorHeader').innerHTML =
-        `<p style="margin-top:0; font-weight: 600;">📄 Document has ${totalUnits} ${unitLabel}.</p>`;
+function clearActiveFolder() {
+    activeFolder = null;
+    localStorage.removeItem('last_processed_subject');
+    updateActiveFolderUI();
+}
 
-    const batchContainer = document.getElementById('batchContainer');
-    batchContainer.innerHTML = "";
-    selectedBatch = null;
+// File Upload & Metadata Extraction
+document.getElementById('fileInput').onchange = async function () {
+    if (this.files.length === 0) return;
+
+    const file = this.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch(getApiUrl('/get_metadata/'), { method: 'POST', body: formData });
+        const data = await res.json();
+        setupBatches(data.total, data.type);
+    } catch (e) {
+        document.getElementById('errorBox').innerHTML = "❌ Error: Could not analyze file.";
+    }
+};
+
+// Batch Selection UI
+function setupBatches(totalUnits, unitType) {
+    const container = document.getElementById('batchContainer');
+    document.getElementById('selectorHeader').innerHTML = `<strong>📄 ${totalUnits} ${unitType} found.</strong>`;
+    container.innerHTML = "";
+    document.getElementById('pageSelector').style.display = 'block';
 
     const batchSize = (unitType === "paragraphs") ? 15 : 3;
     const totalBatches = Math.ceil(totalUnits / batchSize);
@@ -45,165 +56,82 @@ function setupBatches(totalUnits, unitType) {
     for (let i = 0; i < totalBatches; i++) {
         const start = (i * batchSize) + 1;
         const end = Math.min((i + 1) * batchSize, totalUnits);
-
         const btn = document.createElement('button');
-        btn.type = "button";
-        const label = unitType === "pages" ? "Pg" : (unitType === "slides" ? "Slide" : "Para");
-        btn.innerText = `Batch ${i + 1} (${label} ${start}-${end})`;
-        btn.style.cssText = "background: #fff; color: #3498db; border: 1px solid #3498db; padding: 8px 12px; font-size: 0.85em; cursor: pointer; border-radius:6px;";
+        btn.innerText = `Batch ${i + 1} (${start}-${end})`;
+        btn.style.margin = "5px";
 
         btn.onclick = () => {
-            Array.from(batchContainer.children).forEach(b => { b.style.background = "#fff"; b.style.color = "#3498db"; });
-            btn.style.background = "#3498db"; btn.style.color = "#fff";
+            // Just remove "active" from everyone and give it to THIS button
+            document.querySelectorAll('.batch-btn').forEach(b => b.classList.remove('active-batch'));
+            btn.classList.add('active-batch');
             selectedBatch = { start, end };
         };
-        batchContainer.appendChild(btn);
+        container.appendChild(btn);
     }
-    document.getElementById('pageSelector').style.display = 'block';
 }
 
-document.getElementById('fileInput').onchange = async function () {
-    localStorage.removeItem('last_processed_subject');
-    if (this.files.length === 0) return;
-    currentSessionSubject = null;
-    const file = this.files[0];
-    document.getElementById('lessonsResult').innerHTML = "";
-    document.getElementById('errorBox').innerHTML = "";
-
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-        const res = await fetch(getApiUrl('/get_metadata/'), { method: 'POST', body: formData });
-        const data = await res.json();
-        setupBatches(data.total, data.type);
-    } catch (e) {
-        console.error("Metadata fetch failed", e);
-        document.getElementById('errorBox').innerHTML = "❌ Error: Could not analyze file.";
-    }
-};
-
+// Main Process Logic
 async function processContent() {
-    const analyzeBtn = document.querySelector('button[onclick="processContent()"]');
+    const btn = document.getElementById('analyzeBtn');
     const fileInput = document.getElementById('fileInput');
-    const manualText = document.getElementById('manualText').value;
-    const manualTextValue = manualText.trim();
-    const errorBox = document.getElementById('errorBox');
-    const container = document.getElementById('lessonsResult');
+    const manualText = document.getElementById('manualText').value.trim();
+
+    if (!manualText && !fileInput.files[0]) return alert("Please provide content!");
+    if (fileInput.files[0] && !selectedBatch) return alert("Select a batch!");
+
+    btn.disabled = true;
+    btn.innerText = "⏳ Processing...";
+
     const formData = new FormData();
-
-    analyzeBtn.disabled = true;
-    analyzeBtn.style.opacity = "0.5";
-    analyzeBtn.innerText = "Processing...";
-    errorBox.innerHTML = "";
-
-    if (manualTextValue !== "") {
-        container.innerHTML = "";
-        fileInput.value = "";
-        document.getElementById('pageSelector').style.display = 'none';
-        selectedBatch = null;
-        currentSessionSubject = null;
-        formData.append('manual_text', manualTextValue);
-
-    } else if (fileInput.files.length > 0) {
-        const fileObj = fileInput.files[0];
-        if (!selectedBatch) {
-            alert("Please select a batch first!");
-            resetBtn(analyzeBtn);
-            return;
-        }
-        formData.append('file', fileObj);
+    if (manualText) formData.append('manual_text', manualText);
+    else {
+        formData.append('file', fileInput.files[0]);
         formData.append('start_page', selectedBatch.start);
         formData.append('end_page', selectedBatch.end);
-        formData.append('document_filename', fileObj.name);
-    } else {
-        alert("Please paste text or select a file!");
-        resetBtn(analyzeBtn);
-        return;
     }
 
-    const loadingId = "loading-" + Date.now();
-    container.innerHTML += `<p id="${loadingId}" style="color: #3498db; font-weight:600;">⏳ Analyzing content... Please wait.</p>`;
-
-    const savedSubject = localStorage.getItem('last_processed_subject');
-    const folderToUse = activeFolder || savedSubject;
-    if (folderToUse && folderToUse !== "null") {
-        formData.append('document_context', folderToUse);
-    }
+    if (activeFolder) formData.append('document_context', activeFolder);
 
     try {
-        const response = await fetch(getApiUrl('/upload_content/'), { method: 'POST', body: formData });
-        const data = await response.json();
+        const res = await fetch(getApiUrl('/upload_content/'), { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
 
-        if (!response.ok) throw new Error(data.error || "Server Error");
-
-        if (data.subject) {
-            localStorage.setItem('last_processed_subject', data.subject);
-            activeFolder = data.subject;
-            fetchLibrary();
-        }
-
-        const loadingMsg = document.getElementById(loadingId);
-        if (loadingMsg) loadingMsg.remove();
-
+        activeFolder = data.subject;
+        localStorage.setItem('last_processed_subject', data.subject);
+        updateActiveFolderUI();
         renderBatch(data);
+        fetchLibrary();
 
-        if (manualText.trim() !== "") {
-            document.getElementById('manualText').value = "";
-        }
-        selectedBatch = null;
-
-    } catch (error) {
-        const loadingMsg = document.getElementById(loadingId);
-        if (loadingMsg) loadingMsg.remove();
-        errorBox.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+    } catch (e) {
+        alert("Error: " + e.message);
     } finally {
-        setTimeout(() => resetBtn(analyzeBtn), 10000);
-
-        if (analyzeBtn.disabled) {
-            analyzeBtn.innerText = "Cooldown (10s)...";
-        }
+        btn.disabled = false;
+        btn.innerText = "Analyze";
     }
 }
 
-function resetBtn(btn) {
-    btn.disabled = false;
-    btn.style.opacity = "1";
-    btn.innerText = "Analyze";
-}
-
+// Render Lessons/Study Mode
 function renderBatch(data) {
     const container = document.getElementById('lessonsResult');
+    let html = `<h1>${data.topic_name}</h1>`;
 
-    if (data.topic_name) {
-        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db; padding-bottom:10px;">${data.topic_name}</h1>`;
+    data.subtopics.forEach(sub => {
+        html += `
+            <div class="task-card">
+                <h3>${sub.name}</h3>
+                <p>${sub.content}</p>
+            </div>`;
+    });
 
-        if (data.subtopics) {
-            data.subtopics.forEach(sub => {
-                container.innerHTML += `
-                    <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
-                        <h3 style="margin-top:0; color:#34495e;">${sub.name || sub.subtopic_name}</h3>
-                        <p style="margin:0; line-height:1.6;">${sub.content}</p>
-                    </div>`;
-            });
-        }
-    }
-    else if (data.subject) {
-        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db;">${data.subject}</h1>`;
-        data.topics.forEach(topic => {
-            container.innerHTML += `<h2 style="color:#2980b9;">📘 ${topic.topic_name}</h2>`;
-            topic.subtopics.forEach(sub => {
-                container.innerHTML += `
-                    <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
-                        <h3>${sub.subtopic_name}</h3>
-                        <p>${sub.content}</p>
-                    </div>`;
-            });
-        });
-    }
+    container.innerHTML = html;
 
     container.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
+updateActiveFolderUI();
+
+// Library Management
 async function fetchLibrary() {
     const list = document.getElementById('libraryList');
     try {
@@ -211,43 +139,41 @@ async function fetchLibrary() {
         const subjects = await res.json();
 
         if (subjects.length === 0) {
-            list.innerHTML = "<p style='padding:10px; color:#bdc3c7;'>No folders found.</p>";
+            list.innerHTML = "<p style='color:#bdc3c7;'>No folders found.</p>";
             return;
         }
 
         list.innerHTML = "";
         subjects.forEach(subj => {
+            // Subject Folder
             const folderDiv = document.createElement('div');
             folderDiv.className = "folder-item";
             folderDiv.innerHTML = `<strong>📁 ${subj.subject_name}</strong>`;
             folderDiv.onclick = () => selectFolder(subj.subject_name);
             list.appendChild(folderDiv);
 
+            // Topics inside Folder
             subj.topics.forEach(topic => {
                 const topicDiv = document.createElement('div');
-                topicDiv.style.cssText = "margin-left: 15px; padding: 10px; cursor: pointer; border-radius: 6px; font-size: 0.85em; display: flex; justify-content: space-between; align-items: center; color: #ecf0f1; border-bottom: 1px solid #34495e; transition: 0.2s;";
-
-                topicDiv.onmouseover = () => topicDiv.style.background = "#34495e";
-                topicDiv.onmouseout = () => topicDiv.style.background = "transparent";
-
+                topicDiv.className = "sidebar-topic"; // Uses your CSS hover/padding
                 topicDiv.onclick = () => viewLesson(topic.id);
 
                 topicDiv.innerHTML = `
                     <span>📄 ${topic.name}</span>
-                    <div style="display: flex; gap: 5px;">
-                        <button onclick="event.stopPropagation(); startQuiz(${topic.id})" style="padding: 2px 6px; background: #2ecc71; font-size: 0.7em;">📝</button>
-                        <button onclick="event.stopPropagation(); deleteLesson(${topic.id})" style="padding: 2px 6px; background: #e74c3c; font-size: 0.7em;">🗑️</button>
+                    <div class="sidebar-actions">
+                        <button onclick="event.stopPropagation(); startQuiz(${topic.id})" class="btn-sm-green">📝</button>
+                        <button onclick="event.stopPropagation(); deleteLesson(${topic.id})" class="btn-sm-red">🗑️</button>
                     </div>
                 `;
                 list.appendChild(topicDiv);
             });
         });
     } catch (e) {
-        list.innerHTML = "<p class='error'>Error loading library.</p>";
+        list.innerHTML = "<p>Error loading library.</p>";
     }
 }
 
-
+// Folder Selection Logic
 function selectFolder(name) {
     activeFolder = name;
     document.getElementById('currentFolderName').innerText = name;
@@ -255,7 +181,7 @@ function selectFolder(name) {
     localStorage.setItem('last_processed_subject', name);
 }
 
-
+// New Folder Creation
 function createNewFolder() {
     const name = prompt("Enter New Folder Name");
     if (name && name.trim() !== "") {
@@ -263,17 +189,21 @@ function createNewFolder() {
     }
 }
 
-
+// Clear Active Folder
 function clearActiveFolder() {
     activeFolder = null;
     document.getElementById('activeFolderIndicator').style.display = 'none';
     localStorage.removeItem('last_processed_subject');
 }
 
+// Quiz Logic
 async function startQuiz(id) {
-    const list = document.getElementById('libraryList');
-    const originalContent = list.innerHTML;
-    list.innerHTML = "<p>⏳ AI is preparing your quiz... Please wait.</p>";
+    const overlay = document.getElementById('quizOverlay');
+    const questionsBox = document.getElementById('quizQuestions');
+
+    overlay.style.display = 'block';
+    questionsBox.innerHTML = "<p>⏳ AI is preparing your quiz... Please wait.</p>";
+    document.getElementById('quizTitle').innerText = "Generating...";
 
     const formData = new FormData();
     formData.append('guide_id', id);
@@ -281,18 +211,16 @@ async function startQuiz(id) {
     try {
         const res = await fetch(getApiUrl('/generate_quiz/'), { method: 'POST', body: formData });
         const quiz = await res.json();
-        if (!res.ok) throw new Error(quiz.error || "Server Error");
+        if (!res.ok) throw new Error(quiz.error);
 
         displayQuiz(quiz);
-
     } catch (e) {
         alert("Quiz Error: " + e.message);
-        list.innerHTML = originalContent;
-    } finally {
-        fetchLibrary();
+        closeQuiz();
     }
 }
 
+// Display Quiz Questions
 function displayQuiz(quiz) {
     document.getElementById('quizOverlay').style.display = 'block';
     document.getElementById('quizTitle').innerText = quiz.quiz_title;
@@ -327,10 +255,12 @@ function displayQuiz(quiz) {
     });
 }
 
+// Close Quiz Overlay
 function closeQuiz() {
     document.getElementById('quizOverlay').style.display = 'none';
 }
 
+// Delete Lesson Logic
 async function deleteLesson(id) {
     if (!confirm("Are you sure you want to delete this lesson?")) return;
 
@@ -349,6 +279,7 @@ async function deleteLesson(id) {
     }
 }
 
+// View Lesson Detail Logic
 async function viewLesson(id) {
     const container = document.getElementById('lessonsResult');
     container.innerHTML = "<p>⏳ Loading...</p>";
@@ -358,18 +289,20 @@ async function viewLesson(id) {
 
     try {
         const res = await fetch(getApiUrl('/get_lesson_detail/'), { method: 'POST', body: formData });
-        const topicData = await res.json();
+        const data = await res.json();
 
-        container.innerHTML = `<h1 style="color:#2c3e50; border-bottom: 2px solid #3498db;">${topicData.topic_name}</h1>`;
-        topicData.subtopics.forEach(sub => {
-            container.innerHTML += `
-                <div class="task-card" style="margin-left: 20px; border-left: 5px solid #bdc3c7;">
-                    <h3 style="margin-top:0;">${sub.name}</h3>
+        let html = `<h1>${data.topic_name}</h1>`;
+        data.subtopics.forEach(sub => {
+            html += `
+                <div class="task-card">
+                    <h3>${sub.name}</h3>
                     <p>${sub.content}</p>
                 </div>`;
         });
+        container.innerHTML = html;
+        container.scrollTop = 0;
     } catch (e) {
-        container.innerHTML = "<p class='error'>Failed to load.</p>";
+        container.innerHTML = "<p>Failed to load lesson.</p>";
     }
 }
 
